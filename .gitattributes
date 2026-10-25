@@ -1,0 +1,4 @@
+# Store and check out every file byte-for-byte, on every platform -- the C/C++
+# sources, Makefiles and shell scripts are LF and git must never rewrite line
+# endings here; the fonts and other binary assets are left untouched too.
+* -text

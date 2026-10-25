@@ -1,0 +1,10 @@
+/*.log
+build/
+build-bootstrap/
+*.d
+*.o
+*.a
+/.idea
+debug/
+.target.cfg
+releases/

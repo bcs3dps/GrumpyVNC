@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Development</title>
+<style>
+
+body { font-family: Arial, sans-serif; font-size: 11pt; margin: 1in;
+       line-height: 1.4; max-width: 7.5in; color: #1a1a1a; }
+h1 { font-size: 18pt; color: #1a1a1a; border-bottom: 2px solid #333;
+     padding-bottom: 4pt; margin-top: 24pt; }
+h1:first-child { margin-top: 0; }
+h2 { font-size: 14pt; color: #1a1a1a; margin-top: 22pt;
+     border-bottom: 1px solid #999; padding-bottom: 2pt; }
+h3 { font-size: 12pt; color: #333; margin-top: 16pt; }
+h4 { font-size: 11pt; color: #333; margin-top: 12pt; margin-bottom: 4pt; }
+p  { margin: 6pt 0; }
+pre { background-color: #f0f0f0; border: 1px solid #ccc; padding: 8pt;
+      font-family: Consolas, monospace; font-size: 9.5pt; white-space: pre;
+      overflow-x: auto; line-height: 1.25; }
+code { font-family: Consolas, monospace; font-size: 10pt;
+       background-color: #f0f0f0; padding: 1pt 3pt; border-radius: 2px; }
+pre code { background-color: transparent; padding: 0; font-size: 9.5pt; }
+p.note, div.note { background-color: #fff3cd; border-left: 4px solid #ffc107;
+                   padding: 6pt 10pt; margin: 8pt 0; }
+p.important, div.important { background-color: #f8d7da;
+                             border-left: 4px solid #dc3545;
+                             padding: 6pt 10pt; margin: 8pt 0; }
+p.summary, div.summary { background-color: #d1ecf1;
+                         border-left: 4px solid #0c5460;
+                         padding: 6pt 10pt; margin: 8pt 0; }
+ul, ol { margin-top: 4pt; margin-bottom: 8pt; }
+li { margin-bottom: 4pt; }
+li > ul, li > ol { margin-top: 4pt; margin-bottom: 4pt; }
+/* Indented outline body. Use in markdown as:
+   <div class="indent" markdown="1"> ...markdown incl. code fences... </div>
+   (the md_in_html extension processes markdown inside the div). */
+div.indent { margin: 4pt 0 8pt 2em; }
+div.indent > :first-child { margin-top: 0; }
+div.indent > :last-child  { margin-bottom: 0; }
+table { border-collapse: collapse; margin: 10pt 0; width: 100%; }
+td, th { border: 1px solid #999; padding: 4pt 8pt; font-size: 10pt;
+         vertical-align: top; }
+th { background-color: #e0e0e0; text-align: left; }
+tr:nth-child(even) td { background-color: #f7f7f7; }
+a  { color: #1e3a8a; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: none; border-top: 1px solid #999; margin: 16pt 0; }
+strong { color: #1a1a1a; }
+img { max-width: 100%; height: auto; }
+
+.doc-meta { color: #555; font-size: 10pt; margin-top: -6pt;
+            margin-bottom: 12pt; }
+.toc { background-color: #f7f7f7; border: 1px solid #ccc;
+       padding: 10pt 14pt; margin: 16pt 0 24pt; font-size: 10.5pt; }
+.toc h2 { font-size: 12pt; margin-top: 0; margin-bottom: 6pt; border: none;
+          color: #333; }
+.toc ul { margin: 0; padding-left: 20pt; }
+.toc li { margin-bottom: 2pt; }
+.toc a { color: #1e3a8a; }
+
+@media print {
+  body { margin: 0.75in; }
+  pre, table, div.note, div.important { page-break-inside: avoid; }
+  h1, h2, h3 { page-break-after: avoid; }
+}
+
+</style>
+</head>
+<body>
+<h1>Development</h1>
+<div class="toc">
+<h2>Contents</h2>
+<ul>
+  <li><a href="#build-environment">Build Environment</a></li>
+  <li><a href="#building">Building</a></li>
+</ul>
+</div>
+<p>This repository contains the Guppy Screen source code and all its external dependencies.</p>
+<h2 id="build-environment">Build Environment</h2>
+<h3>Install Docker</h3>
+<p>You can follow the instructions to get docker on Ubuntu:
+https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository</p>
+<ol>
+<li><code>sudo apt-get update &amp;&amp; sudo apt-get install ca-certificates curl gnupg</code></li>
+<li><code>sudo install -m 0755 -d /etc/apt/keyrings</code></li>
+<li><code>curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg</code></li>
+<li><code>sudo chmod a+r /etc/apt/keyrings/docker.gpg</code></li>
+<li><code>echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list &gt; /dev/null</code></li>
+<li><code>sudo apt-get update</code></li>
+<li><code>sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin</code></li>
+</ol>
+<h2 id="building">Building</h2>
+<p>Clone the grumpyscreen repo (and submodules) and apply a couple of patches locally.</p>
+<ol>
+<li><code>git clone --recursive https://github.com/pellcorp/grumpyscreen grumpyscreen &amp;&amp; cd grumpyscreen</code></li>
+</ol>
+<h3>Build for Creality OS (K1, K1M, Ender 3 V3 KE, etc)</h3>
+<pre><code>./build.sh mips [--small]
+./build.sh mips [--small] --printer IP_ADDRESS_OF_PRINTER --password PRINTER_PASSWORD
+</code></pre>
+<p>The second form directly deploys it to your printer or dev box.</p>
+<h3>Build for RPI</h3>
+<pre><code>./build.sh rpi [--small]
+./build.sh rpi [--small] --printer IP_ADDRESS_OF_PRINTER [--username USERNAME]
+</code></pre>
+<p>The second form directly deploys it to your rpi based printer or dev box.</p>
+<h3>Build Locally (SDL2)</h3>
+<p>Mostly this is about getting good screenshots for the moment but you can build grumpyscreen locally with SDL2.</p>
+<pre><code>./build.sh sdl [--small]
+build/sdl/bin/grumpyscreen
+</code></pre>
+<p>Add <code>--setup</code> before the target when you want to clean that target before building, for example <code>./build.sh --setup mips-small</code>.</p>
+</body>
+</html>

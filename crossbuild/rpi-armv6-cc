@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# ----------------------------------------------------------------------------
+#   rpi-armv6-cc - ARMv6 (Raspberry Pi 1 / Zero / Zero W) compiler wrapper
+#
+#   Makes the host's gcc-12 ARM cross compiler (arm-linux-gnueabihf-gcc-12 /
+#   -g++-12) produce code that runs on an ARMv6 + VFPv2 core, by compiling
+#   against a Raspberry Pi OS (Raspbian) bookworm armhf SYSROOT and linking
+#   against that sysroot's own ARMv6 C library, libgcc and libstdc++.  gcc-12
+#   because the sysroot's C++ library and headers are gcc-12's: the
+#   distribution's default gcc-13 cannot compile gcc-12's C++ headers as they
+#   stand (it made five type-trait names those headers define into built-in
+#   keywords).
+#
+#   It is reached through symlinks named <prefix>gcc and <prefix>g++ (made by
+#   build.sh), so a build system that takes a CROSS_COMPILE prefix -- and its
+#   sub-builds -- call it for every compile and link without knowing it is
+#   there.  The name it was called by picks the driver: a name ending in g++
+#   runs arm-linux-gnueabihf-g++-12, anything else arm-linux-gnueabihf-gcc-12.
+#
+#   WHY A FLAG IS NOT ENOUGH.  -march=armv6 makes the compiler EMIT ARMv6
+#   code, but the libraries it links by default are built for ARMv7-A
+#   (Debian's and Ubuntu's armhf baseline), so a static link would pull ARMv7
+#   instructions in and the program would die with SIGILL on an ARMv6 core.
+#   And C++ is compiled against the SYSROOT's own gcc-12 headers rather than
+#   the compiler's, so the calls the headers emit are exactly the ones the
+#   sysroot's libstdc++ provides.  Hence -nostdinc: every header directory is
+#   named explicitly below.
+#
+#   The sysroot is given by the environment variable PI_SYSROOT_ARMV6 (the
+#   root directory holding lib/ and usr/).  It is never written into this
+#   script, so the script names no path outside the tree it lives in.
+#
+#   Exit status: the compiler's own; 2 if PI_SYSROOT_ARMV6 is unset or does
+#   not look like the expected sysroot, or the gcc-12 compiler is not
+#   installed.
+# ----------------------------------------------------------------------------
+
+set -u
+
+# ----------------------------------------------------------------------------
+#   The sysroot, checked before anything is run: a missing or wrong sysroot
+#   must stop the build here, not fall back silently to the host's ARMv7
+#   libraries and produce a binary that only fails on the target.
+# ----------------------------------------------------------------------------
+if [ -z "${PI_SYSROOT_ARMV6:-}" ]; then
+    # No sysroot named: refuse rather than guess.
+    echo "rpi-armv6-cc: PI_SYSROOT_ARMV6 is not set (the Raspberry Pi OS bookworm armhf sysroot)" >&2
+    exit 2
+fi
+SR="$PI_SYSROOT_ARMV6"
+
+if [ ! -f "$SR/usr/lib/gcc/arm-linux-gnueabihf/12/libstdc++.a" ] || \
+   [ ! -f "$SR/usr/lib/arm-linux-gnueabihf/libc.a" ]; then
+    # The directory lacks the gcc-12 C++ library or the static libc: not the
+    # sysroot this wrapper is written for.
+    echo "rpi-armv6-cc: '$SR' is not a bookworm armhf sysroot (no gcc-12 libstdc++.a or libc.a)" >&2
+    exit 2
+fi
+
+# ----------------------------------------------------------------------------
+#   Which driver, and whether this call compiles C++.  The name decides the
+#   driver; C++ header paths are needed whenever a C++ source is compiled,
+#   and some build systems compile .cpp files through the C driver's name
+#   (gcc picks the language from the file extension), so the arguments are
+#   looked at as well as the name.
+# ----------------------------------------------------------------------------
+case "$(basename "$0")" in
+    *g++)
+        # Called as the C++ driver: g++ also links libstdc++ by default.
+        DRIVER="arm-linux-gnueabihf-g++-12"
+        IS_CXX=1
+        ;;
+    *)
+        # Called as the C driver.
+        DRIVER="arm-linux-gnueabihf-gcc-12"
+        IS_CXX=0
+        ;;
+esac
+
+if ! command -v "$DRIVER" > /dev/null 2>&1; then
+    # No gcc-12 cross compiler: refuse rather than fall back to the default
+    # gcc-13, which cannot read the sysroot's gcc-12 C++ headers.
+    echo "rpi-armv6-cc: $DRIVER is not installed (package g++-12-arm-linux-gnueabihf)" >&2
+    exit 2
+fi
+
+PREV=""
+for ARG in "$@"; do
+    # One argument per iteration: a C++ source file, or "-x c++", means C++.
+    case "$ARG" in
+        *.cpp|*.cc|*.cxx|*.C|*.c++)
+            # A C++ source by its extension.
+            IS_CXX=1
+            ;;
+    esac
+    if [ "$PREV" = "-x" ] && [ "$ARG" = "c++" ]; then
+        # The language forced explicitly.
+        IS_CXX=1
+    fi
+    PREV="$ARG"
+done
+
+# ----------------------------------------------------------------------------
+#   The target: ARMv6 with VFPv2 hard-float, ARM (not Thumb) code -- what the
+#   Pi 1 / Zero / Zero W core runs and what the sysroot's libraries are built
+#   for.
+# ----------------------------------------------------------------------------
+ARCH_FLAGS=(-march=armv6 -mfpu=vfp -mfloat-abi=hard -marm)
+
+# ----------------------------------------------------------------------------
+#   Headers, in search order.  For C++ the sysroot's gcc-12 library headers
+#   come first (they include_next into the C headers below them).  The
+#   compiler's own builtin directory stays (stddef.h, stdarg.h, limits.h and
+#   the other compiler headers belong to the compiler, not the library).
+#   Then the sysroot's multiarch and plain C headers -- never the host's
+#   ARMv7 ones.
+# ----------------------------------------------------------------------------
+INC_FLAGS=(-nostdinc)
+if [ "$IS_CXX" -eq 1 ]; then
+    # C++: the target's own gcc-12 library headers.
+    INC_FLAGS+=(-isystem "$SR/usr/include/c++/12"
+                -isystem "$SR/usr/include/arm-linux-gnueabihf/c++/12"
+                -isystem "$SR/usr/include/c++/12/backward")
+fi
+INC_FLAGS+=(-isystem "$("$DRIVER" -print-file-name=include)"
+            -isystem "$SR/usr/include/arm-linux-gnueabihf"
+            -isystem "$SR/usr/include")
+
+# ----------------------------------------------------------------------------
+#   Linking: startup objects (crt1.o and friends; crtbegin / crtend) from the
+#   sysroot through -B, and libraries from the sysroot through -L, placed
+#   ahead of the compiler's own directories so the ARMv6 libgcc, libstdc++
+#   and libc are the ones found.  Harmless on a compile-only call.
+# ----------------------------------------------------------------------------
+LINK_FLAGS=(--sysroot="$SR"
+            -B"$SR/usr/lib/arm-linux-gnueabihf"
+            -B"$SR/usr/lib/gcc/arm-linux-gnueabihf/12"
+            -L"$SR/usr/lib/gcc/arm-linux-gnueabihf/12"
+            -L"$SR/usr/lib/arm-linux-gnueabihf"
+            -L"$SR/lib/arm-linux-gnueabihf")
+
+# Hand over to the real compiler with the caller's own arguments last.
+exec "$DRIVER" "${ARCH_FLAGS[@]}" "${INC_FLAGS[@]}" "${LINK_FLAGS[@]}" "$@"

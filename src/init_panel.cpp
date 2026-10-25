@@ -1,0 +1,139 @@
+#include "init_panel.h"
+#include "utils.h"
+#include "state.h"
+#include "config.h"
+#include "mmu_panel.h"
+#include "logger.h"
+#include "theme.h"
+
+using namespace Theme;
+
+#include <algorithm>
+#include <cstdio>
+
+InitPanel::InitPanel(MainPanel &mp, std::mutex& l)
+  : cont(lv_obj_create(lv_scr_act()))
+  , label(lv_label_create(cont))
+  , main_panel(mp)
+  , lv_lock(l)
+{
+  // a centred notice card; the label wraps inside it if a message runs long
+  lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_style(cont, &styles().panel, 0);
+  // the system-is-not-ready notice, so it wears the not-ready colour
+  lv_obj_set_style_bg_color(cont, col(DISABLED), 0);
+  lv_obj_set_size(cont, scale_w(264), LV_SIZE_CONTENT);
+  lv_obj_center(cont);
+
+  lv_obj_set_width(label, LV_PCT(100));
+  lv_label_set_text(label, LV_SYMBOL_WARNING " Waiting for Klipper to start...");
+  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+}
+
+InitPanel::~InitPanel() {
+  if (cont != NULL) {
+    lv_obj_del(cont);
+    cont = NULL;
+  }
+}
+
+void InitPanel::connected(KWebSocketClient &ws) {
+  LOG_DEBUG("init panel connected");
+  State *state = State::get_instance();
+  state->reset();
+
+  ws.send_jsonrpc("printer.objects.list", [this, &ws](json& d) {
+    State *state = State::get_instance();
+	  state->set_data("printer_objs", d, "/result");
+
+	  ws.send_jsonrpc("server.files.roots",
+			[](json& j) { State::get_instance()->set_data("roots", j, "/result"); });
+
+	  ws.send_jsonrpc("printer.info",
+			[](json& j) { State::get_instance()->set_data("printer_info", j, "/result"); });
+
+    this->main_panel.subscribe();
+
+    // spoolman
+    ws.send_jsonrpc("server.info", [this](json &j) {
+      if (get_log_level() <= LogLevel::DEBUG) {
+        LOG_DEBUG("server_info {}", j.dump());
+      }
+      State::get_instance()->set_data("server_info", j, "/result");
+
+      const auto components_ptr = "/result/components"_json_pointer;
+      if (j.contains(components_ptr) && !j[components_ptr].is_null()) {
+        auto &components = j[components_ptr];
+        const auto &has_spoolman = components.template get<std::vector<std::string>>();
+        if (std::find(has_spoolman.begin(), has_spoolman.end(), "spoolman") != has_spoolman.end()) {
+          this->main_panel.enable_spoolman();
+        }
+      }
+    });
+
+    auto display_sensors = state->get_display_sensors();
+    this->main_panel.create_sensors(display_sensors);
+
+    auto display_fans = state->get_display_fans();
+    this->main_panel.create_fans(display_fans);
+
+    auto display_leds = state->get_display_leds();
+    this->main_panel.create_leds(display_leds);
+
+    // subscribe to all objects except gcode_macro
+    const auto objects_ptr = "/result/objects"_json_pointer;
+    if (d.contains(objects_ptr) && !d[objects_ptr].is_null()) {
+      auto objs = d[objects_ptr];
+      json sub_objs;
+      for (auto &obj : objs) {
+        std::string obj_name = obj.template get<std::string>();
+        if (obj_name.rfind("gcode_macro ", 0 ) != 0) {
+          sub_objs[obj_name] = nullptr;
+        }
+      }
+
+      // runs again on every klipper reconnect, so the tab has to follow the
+      // backend back down as well as up
+      MmuPanel *mmu = this->main_panel.mmu();
+      if (mmu != NULL && mmu->select_backend() != NULL) {
+        this->main_panel.enable_mmu();
+      } else {
+        this->main_panel.disable_mmu();
+      }
+
+      json subs = {{ "objects", sub_objs }};
+      ws.send_jsonrpc("printer.info", [this, &ws, subs](json& info) {
+        State::get_instance()->set_data("printer_info", info, "/result");
+        const std::string klippy_state = info.value("/result/state"_json_pointer, std::string());
+        if (klippy_state != "ready") {
+          LOG_DEBUG("Klipper is not ready (state: {})", klippy_state.empty() ? "unknown" : klippy_state);
+          return;
+        }
+
+        if (get_log_level() <= LogLevel::DEBUG) {
+          LOG_DEBUG("subscribing to {}", subs.dump());
+        }
+        ws.send_jsonrpc("printer.objects.subscribe", subs, [this](json &data) {
+          State::get_instance()->set_data("printer_state", data, "/result/status");
+          this->main_panel.init(data);
+          LOG_DEBUG("done init");
+          std::lock_guard<std::mutex> lock(this->lv_lock);
+          lv_obj_add_flag(this->cont, LV_OBJ_FLAG_HIDDEN);
+          lv_obj_move_background(this->cont);
+        });
+      });
+    }
+  });
+}
+
+void InitPanel::disconnected(KWebSocketClient &ws) {
+  LOG_DEBUG("init panel disconnected");
+  std::lock_guard<std::mutex> lock(lv_lock);
+  set_message(LV_SYMBOL_WARNING " Waiting for Klipper to start...");
+  lv_obj_clear_flag(cont, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_move_foreground(cont);
+}
+
+void InitPanel::set_message(const char *message) {
+	lv_label_set_text(label, message);
+}

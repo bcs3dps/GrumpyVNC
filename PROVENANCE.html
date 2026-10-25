@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Provenance and accreditation</title>
+<style>
+
+body { font-family: Arial, sans-serif; font-size: 11pt; margin: 1in;
+       line-height: 1.4; max-width: 7.5in; color: #1a1a1a; }
+h1 { font-size: 18pt; color: #1a1a1a; border-bottom: 2px solid #333;
+     padding-bottom: 4pt; margin-top: 24pt; }
+h1:first-child { margin-top: 0; }
+h2 { font-size: 14pt; color: #1a1a1a; margin-top: 22pt;
+     border-bottom: 1px solid #999; padding-bottom: 2pt; }
+h3 { font-size: 12pt; color: #333; margin-top: 16pt; }
+h4 { font-size: 11pt; color: #333; margin-top: 12pt; margin-bottom: 4pt; }
+p  { margin: 6pt 0; }
+pre { background-color: #f0f0f0; border: 1px solid #ccc; padding: 8pt;
+      font-family: Consolas, monospace; font-size: 9.5pt; white-space: pre;
+      overflow-x: auto; line-height: 1.25; }
+code { font-family: Consolas, monospace; font-size: 10pt;
+       background-color: #f0f0f0; padding: 1pt 3pt; border-radius: 2px; }
+pre code { background-color: transparent; padding: 0; font-size: 9.5pt; }
+p.note, div.note { background-color: #fff3cd; border-left: 4px solid #ffc107;
+                   padding: 6pt 10pt; margin: 8pt 0; }
+p.important, div.important { background-color: #f8d7da;
+                             border-left: 4px solid #dc3545;
+                             padding: 6pt 10pt; margin: 8pt 0; }
+p.summary, div.summary { background-color: #d1ecf1;
+                         border-left: 4px solid #0c5460;
+                         padding: 6pt 10pt; margin: 8pt 0; }
+ul, ol { margin-top: 4pt; margin-bottom: 8pt; }
+li { margin-bottom: 4pt; }
+li > ul, li > ol { margin-top: 4pt; margin-bottom: 4pt; }
+/* Indented outline body. Use in markdown as:
+   <div class="indent" markdown="1"> ...markdown incl. code fences... </div>
+   (the md_in_html extension processes markdown inside the div). */
+div.indent { margin: 4pt 0 8pt 2em; }
+div.indent > :first-child { margin-top: 0; }
+div.indent > :last-child  { margin-bottom: 0; }
+table { border-collapse: collapse; margin: 10pt 0; width: 100%; }
+td, th { border: 1px solid #999; padding: 4pt 8pt; font-size: 10pt;
+         vertical-align: top; }
+th { background-color: #e0e0e0; text-align: left; }
+tr:nth-child(even) td { background-color: #f7f7f7; }
+a  { color: #1e3a8a; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: none; border-top: 1px solid #999; margin: 16pt 0; }
+strong { color: #1a1a1a; }
+img { max-width: 100%; height: auto; }
+
+.doc-meta { color: #555; font-size: 10pt; margin-top: -6pt;
+            margin-bottom: 12pt; }
+.toc { background-color: #f7f7f7; border: 1px solid #ccc;
+       padding: 10pt 14pt; margin: 16pt 0 24pt; font-size: 10.5pt; }
+.toc h2 { font-size: 12pt; margin-top: 0; margin-bottom: 6pt; border: none;
+          color: #333; }
+.toc ul { margin: 0; padding-left: 20pt; }
+.toc li { margin-bottom: 2pt; }
+.toc a { color: #1e3a8a; }
+
+@media print {
+  body { margin: 0.75in; }
+  pre, table, div.note, div.important { page-break-inside: avoid; }
+  h1, h2, h3 { page-break-after: avoid; }
+}
+
+</style>
+</head>
+<body>
+<h1>Provenance and accreditation</h1>
+<div class="toc">
+<h2>Contents</h2>
+<ul>
+  <li><a href="#this-forkrsquos-upstream">This fork&rsquo;s upstream</a></li>
+  <li><a href="#vendored-dependencies-upstream-used-git-submodules-here-they-are-vendored-in-full">Vendored dependencies (upstream used git submodules; here they are vendored in full)</a></li>
+</ul>
+</div>
+<p>GrumpyVNC is a <strong>self-contained fork</strong>. It carries vendored copies of its
+upstream project and of every dependency, so it builds from a single clone with
+no network access and <strong>no git submodules</strong> — nothing here depends on an
+external repository continuing to exist. Each vendored component keeps its own
+licence file; refer to that file for its terms.</p>
+<p><strong>Upstream fixes are applied by hand</strong> from the sources below. There is no live
+tie to any of them; the URLs are recorded for credit and so a maintainer knows
+where to pull a fix from.</p>
+<h2 id="this-forkrsquos-upstream">This fork&rsquo;s upstream</h2>
+<ul>
+<li><strong>grumpyscreen</strong> — <a href="https://github.com/pellcorp/grumpyscreen">https://github.com/pellcorp/grumpyscreen</a> (GPL-3.0), itself
+  a fork of <strong>GuppyScreen</strong> (<a href="https://github.com/ballaswag/guppyscreen">https://github.com/ballaswag/guppyscreen</a>).</li>
+</ul>
+<p>GrumpyVNC adds, on top of grumpyscreen, a built-in RFB/VNC server (<code>vnc/</code>, with a
+DES engine for VNC authentication), an ARMv6 cross-build (<code>crossbuild/</code>), and
+Centauri / C2 integration. Those additions are Copyright (c) 2026 B. C. Services,
+GPL-3.0.</p>
+<h2 id="vendored-dependencies-upstream-used-git-submodules-here-they-are-vendored-in-full">Vendored dependencies (upstream used git submodules; here they are vendored in full)</h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Upstream</th>
+<th>Branch</th>
+<th>Licence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lvgl/</code></td>
+<td><a href="https://github.com/pellcorp/lvgl.git">https://github.com/pellcorp/lvgl.git</a></td>
+<td><code>g8.3.11</code></td>
+<td>MIT (<code>lvgl/LICENCE.txt</code>)</td>
+</tr>
+<tr>
+<td><code>lv_drivers/</code></td>
+<td><a href="https://github.com/pellcorp/lv_drivers.git">https://github.com/pellcorp/lv_drivers.git</a></td>
+<td><code>g8.3.0</code></td>
+<td>MIT (<code>lv_drivers/LICENSE</code>)</td>
+</tr>
+<tr>
+<td><code>libhv/</code></td>
+<td><a href="https://github.com/ithewei/libhv.git">https://github.com/ithewei/libhv.git</a></td>
+<td>—</td>
+<td>BSD-3-Clause (<code>libhv/LICENSE</code>)</td>
+</tr>
+<tr>
+<td><code>fmt/</code></td>
+<td><a href="https://github.com/fmtlib/fmt.git">https://github.com/fmtlib/fmt.git</a></td>
+<td>—</td>
+<td>MIT (<code>fmt/LICENSE</code>)</td>
+</tr>
+<tr>
+<td><code>wpa_supplicant/</code></td>
+<td>hostap — <a href="https://w1.fi/hostap.git">https://w1.fi/hostap.git</a></td>
+<td>—</td>
+<td>BSD (<code>wpa_supplicant/COPYING</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Each dependency is vendored <strong>trimmed to the source this project actually
+builds</strong>, plus its licence file; the upstream projects&rsquo; own demos, examples,
+tests and documentation are not reproduced here. All five licences are
+compatible with this project&rsquo;s GPL-3.0.</p>
+<p>The <code>material*/</code> icon assets derive from the Material Design Icons webfont
+(Pictogrammers / Templarian); see the credits in <code>README.md</code>.</p>
+</body>
+</html>
