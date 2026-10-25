@@ -108,12 +108,117 @@ file.</p>
 :white_check_mark: MMU support (AFC, Happy Hare)
 :white_check_mark: <strong>Built-in VNC server (remote view/control of the panel)</strong></p>
 <h2 id="building">Building</h2>
-<p><code>make</code> builds the panel binary; the Makefile carries the options
-(<code>MMU_BACKENDS</code>, <code>GUPPY_SMALL_SCREEN</code>, <code>GUPPY_SUNXI_FB</code>, <code>GUPPY_SDL</code> desktop
-preview, <code>GUPPY_NO_VNC</code>, and the draw-buffer tuning). For the ARMv6 panel
-target, build through <code>crossbuild/</code>. The vendored <code>libhv</code> and <code>wpa_supplicant</code>
-are built into static libraries by the top-level <code>make</code>, so no system packages
-are required.</p>
+<p>The panel targets are cross-compiled for Linux/ARM, so <strong>on Windows you build
+inside WSL</strong> (Ubuntu/Debian); the <code>native</code> target also builds on any Linux host.
+Every build is <strong>fully static</strong> (the build script verifies it), so the target
+device needs no libraries installed. The vendored dependencies (<code>libhv</code>,
+<code>wpa_supplicant</code>) are compiled from source into static libraries by the build
+and <code>fmt</code> is header-only, so <strong>no dependency <code>-dev</code> packages are required</strong> —
+that is the point of the self-contained tree.</p>
+<h3>1. A Linux build host (Windows -&gt; WSL)</h3>
+<p>In an elevated PowerShell:</p>
+<pre><code>wsl --install -d Ubuntu
+</code></pre>
+<p>Open the Ubuntu shell; every command below runs there. (On native Linux, skip
+this step.)</p>
+<h3>2. Base build tools (all targets)</h3>
+<pre><code>sudo apt-get update
+sudo apt-get install -y build-essential make file binutils
+</code></pre>
+<p><code>build-essential</code> supplies the host <code>gcc</code> / <code>g++</code> for the <code>native</code> target and
+the C++17 toolchain; <code>make</code>, <code>file</code> and <code>binutils</code> (<code>readelf</code>) drive the build
+and its verification. For the optional SDL desktop preview (<code>GUPPY_SDL=1</code>, runs
+the UI in a window on the host) also install <code>libsdl2-dev pkg-config</code>.</p>
+<h3>3. Cross toolchain, per target</h3>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Runs on</th>
+<th>Cross-compiler apt packages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>native</code></td>
+<td>the build host (x86-64 Linux / WSL)</td>
+<td>none beyond <code>build-essential</code></td>
+</tr>
+<tr>
+<td><code>armv7</code></td>
+<td>generic 32-bit ARM (ARMv7-A)</td>
+<td><code>gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf</code></td>
+</tr>
+<tr>
+<td><code>sunxi</code></td>
+<td>Allwinner sunxi (disp2) panel — e.g. Elegoo Centauri / C2</td>
+<td>same as <code>armv7</code></td>
+</tr>
+<tr>
+<td><code>aarch64</code></td>
+<td>64-bit ARM (Pi Zero 2 W / 3 / 4 / 5)</td>
+<td><code>gcc-aarch64-linux-gnu g++-aarch64-linux-gnu</code></td>
+</tr>
+<tr>
+<td><code>armv6</code></td>
+<td>Pi 1 / Zero / Zero W (ARMv6 + VFPv2)</td>
+<td><code>gcc-12-arm-linux-gnueabihf g++-12-arm-linux-gnueabihf</code> <strong>+ a sysroot (step 4)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Install only the targets you need, e.g. for the Centauri / C2 (<code>sunxi</code>) build:</p>
+<pre><code>sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+</code></pre>
+<p>The 32-bit ARM binutils (<code>arm-linux-gnueabihf-ar</code>, <code>-readelf</code>, <code>-strip</code>, …) come
+with those packages; the <code>armv6</code> build also uses them.</p>
+<h3>4. ARMv6 only — the sysroot</h3>
+<p><code>-march=armv6</code> alone is <strong>not</strong> enough: Debian/Ubuntu armhf libraries are built
+for ARMv7-A, so a static link pulls ARMv7 instructions in and the program dies
+with <code>SIGILL</code> on an ARMv6 core. The <code>crossbuild/rpi-armv6-cc</code> wrapper therefore
+compiles against a <strong>Raspberry Pi OS (Raspbian) <em>bookworm</em> armhf sysroot</strong> and
+links that sysroot&rsquo;s own ARMv6 <code>libc</code> / <code>libgcc</code> / <code>libstdc++</code> — which are
+<strong>gcc-12</strong>&rsquo;s, hence the <code>gcc-12-arm-linux-gnueabihf</code> packages above (the distro&rsquo;s
+default gcc-13 cannot compile the sysroot&rsquo;s gcc-12 C++ headers).</p>
+<p>Obtain a bookworm armhf sysroot (either way), a directory holding <code>lib/</code> and
+<code>usr/</code>:</p>
+<pre><code># from a running Pi (Raspberry Pi OS bookworm, 32-bit):
+rsync -aL --delete pi@&lt;pi-host&gt;:/lib  /path/to/pi-sysroot-armhf/lib
+rsync -aL --delete pi@&lt;pi-host&gt;:/usr  /path/to/pi-sysroot-armhf/usr
+# or extract /lib and /usr from a Raspberry Pi OS Lite (bookworm, 32-bit) image.
+</code></pre>
+<p>It must contain <code>usr/lib/gcc/arm-linux-gnueabihf/12/libstdc++.a</code> and
+<code>usr/lib/arm-linux-gnueabihf/libc.a</code> (the wrapper checks for these). Point the
+build at it:</p>
+<pre><code>export PI_SYSROOT_ARMV6=/path/to/pi-sysroot-armhf
+</code></pre>
+<h3>5. Build</h3>
+<p>From the repo root, one target at a time — each builds into its own
+<code>build/&lt;target&gt;/</code> and is verified (static, no interpreter, correct ARM
+architecture tag):</p>
+<pre><code>bash crossbuild/build.sh native
+bash crossbuild/build.sh armv7
+bash crossbuild/build.sh aarch64
+bash crossbuild/build.sh sunxi        # Centauri / C2: sunxi framebuffer, no VNC, small draw buffer
+PI_SYSROOT_ARMV6=/path/to/pi-sysroot-armhf bash crossbuild/build.sh armv6
+</code></pre>
+<p>The binary lands at <code>build/&lt;target&gt;/bin/grumpyscreen</code>. Anything after the target
+is passed through to <code>make</code> (e.g. a <code>clean</code>, or an option override).</p>
+<h3>6. Build options (make variables)</h3>
+<ul>
+<li><code>GUPPY_NO_VNC=1</code> — leave the built-in VNC server out (smaller; panel-only builds).</li>
+<li><code>MMU_BACKENDS="afc hh"</code> — MMU vendor drivers (default AFC + Happy Hare; <code>""</code> for none).</li>
+<li><code>GUPPY_SMALL_SCREEN=1</code> — the 480x272 asset set and touch calibration.</li>
+<li><code>GUPPY_SUNXI_FB=1</code> — the Allwinner disp2 framebuffer path (the <code>sunxi</code> target sets it).</li>
+<li><code>GUPPY_DRAW_BUF_PX=&lt;pixels&gt;</code> / <code>GUPPY_DRAW_BUF_SINGLE=1</code> — LVGL draw-buffer size / single buffer, for tight RAM.</li>
+<li><code>GUPPY_SDL=1</code> — build the desktop preview against SDL2 (needs <code>libsdl2-dev</code>).</li>
+<li><code>COSMOS=&lt;name&gt;</code> — OpenCentauri Cosmos button text.</li>
+</ul>
+<p>A changed flag needs a clean build — <code>make</code> does not track flag changes.</p>
+<div class="note">
+<p>The upstream Docker build (<code>build.sh</code>, using the <code>pellcorp/grumpydev</code> image)
+is kept from grumpyscreen but is <strong>not</strong> the path here: this fork builds
+self-contained with the toolchain above, no Docker image required.</p>
+</div>
 <h2 id="credits">Credits</h2>
 <ul>
 <li><a href="https://github.com/pellcorp/grumpyscreen">Grumpyscreen</a></li>
